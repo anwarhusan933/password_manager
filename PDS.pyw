@@ -15,6 +15,41 @@ DATA_FILE = "passwords.enc.jsonl"   # JSON Lines (one JSON object per line)
 MASTER_FILE = "master.hash"
 
 class PasswordManager:
+    # --- Password Strength Meter ---
+    def create_strength_bar(self, parent):
+        frame = ttk.Frame(parent)
+        canvas = tk.Canvas(frame, width=180, height=12, bg=parent.cget('background'), highlightthickness=0)
+        canvas.pack(side=tk.LEFT, padx=5)
+        label = ttk.Label(frame, text="", font=('Arial', 9))
+        label.pack(side=tk.LEFT, padx=5)
+        return frame, canvas, label
+
+    def update_strength_bar(self, password, canvas, label):
+        score = 0
+        if len(password) >= 8:
+            score += 1
+        if len(password) >= 12:
+            score += 1
+        if any(c.isupper() for c in password):
+            score += 1
+        if any(c.islower() for c in password):
+            score += 1
+        if any(c.isdigit() for c in password):
+            score += 1
+        if any(c in string.punctuation for c in password):
+            score += 1
+        # Draw bar
+        canvas.delete('all')
+        colors = ['#e74c3c', '#e67e22', '#f1c40f', '#2ecc71', '#27ae60', '#1abc9c']
+        width = 180 * min(score, 6) / 6
+        color = colors[min(score, 5)]
+        canvas.create_rectangle(0, 0, width, 12, fill=color, outline=color)
+        if score < 3:
+            label.config(text="Weak", foreground='#e74c3c')
+        elif score < 5:
+            label.config(text="Medium", foreground='#f1c40f')
+        else:
+            label.config(text="Strong", foreground='#27ae60')
     # ---------- UI SETUP ----------
     def __init__(self, root):
         self.root = root
@@ -99,11 +134,16 @@ class PasswordManager:
         self.master_pw_entry = ttk.Entry(self.login_frame, show="•", font=('Arial', 12))
         self.master_pw_entry.pack(pady=8, ipadx=60)
         self.master_pw_entry.bind('<Return>', lambda e: self.handle_login())
+        # Strength bar for master password
+        self.master_pw_strength_frame, self.master_pw_strength_canvas, self.master_pw_strength_label = self.create_strength_bar(self.login_frame)
+        self.master_pw_strength_frame.pack(pady=2)
+        self.master_pw_entry.bind('<KeyRelease>', self.update_master_pw_strength)
         self.login_button = ttk.Button(self.login_frame, text="Login", command=self.handle_login)
         self.login_button.pack(pady=18, ipadx=10, ipady=4)
-        self.strength_label = ttk.Label(self.login_frame, text="", foreground='red')
-        self.strength_label.pack()
-        self.master_pw_entry.bind('<KeyRelease>', self.check_password_strength)
+
+    def update_master_pw_strength(self, event=None):
+        password = self.master_pw_entry.get()
+        self.update_strength_bar(password, self.master_pw_strength_canvas, self.master_pw_strength_label)
 
         # Main menu screen
         self.menu_frame = ttk.Frame(self.content_frame)
@@ -128,6 +168,10 @@ class PasswordManager:
             entry.grid(row=i, column=1, padx=7, pady=7, ipadx=60)
             self.entry_vars[name] = entry
             if name == 'password':
+                # Strength bar for password field
+                self.pw_strength_frame, self.pw_strength_canvas, self.pw_strength_label = self.create_strength_bar(form_frame)
+                self.pw_strength_frame.grid(row=i+1, column=1, sticky='w', pady=(0,7))
+                entry.bind('<KeyRelease>', self.update_entry_pw_strength)
                 # Eye / Generate / Copy buttons
                 ttk.Button(form_frame, text="👁", width=2, command=self.toggle_password_visibility)\
                     .grid(row=i, column=2, padx=3)
@@ -135,6 +179,10 @@ class PasswordManager:
                 gen_btn.grid(row=i, column=3, padx=3)
                 copy_btn = ttk.Button(form_frame, text="📋", width=2, command=self.copy_password_to_clipboard)
                 copy_btn.grid(row=i, column=4, padx=3)
+
+    def update_entry_pw_strength(self, event=None):
+        password = self.entry_vars['password'].get()
+        self.update_strength_bar(password, self.pw_strength_canvas, self.pw_strength_label)
 
         button_frame = ttk.Frame(self.add_frame)
         button_frame.pack(pady=12)
